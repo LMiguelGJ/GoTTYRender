@@ -15,4 +15,4 @@ USER root
 WORKDIR /root
 
 ENV PORT=8080
-CMD ["ttyd", "--writable", "-p", "8080", "bash"]
+CMD ["ttyd", "-p", "8080", "bash"]

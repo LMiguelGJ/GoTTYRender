@@ -10,5 +10,5 @@ WORKDIR /home/webterm
 
 ENV PORT=8080
 
-# Lanzar ttyd (terminal web en $PORT)
-CMD ["ttyd", "-p", "8080", "bash"]
+# Lanzar ttyd con entrada habilitada
+CMD ["ttyd", "--writable", "-p", "8080", "bash"]

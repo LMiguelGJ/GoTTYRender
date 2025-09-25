@@ -16,6 +16,9 @@ RUN apt-get update && apt-get install -y \
     net-tools \
     iproute2 \
     ca-certificates \
+    systemd \
+    hostname \
+    dbus \
     && rm -rf /var/lib/apt/lists/*
 
 # Trabajamos como root directamente
@@ -47,38 +50,49 @@ RUN ARCH=$(uname -m) && \
     chmod 755 /etc/earnapp && \
     chmod 644 /etc/earnapp/*
 
-# Crear script de inicio que maneja ambos servicios
+# Crear script de inicio que ejecute EarnApp en background y ttyd en foreground
 RUN echo '#!/bin/bash\n\
-echo "=== Iniciando EarnApp Docker Container ==="\n\
-echo "Arquitectura: $(uname -m)"\n\
-echo "Version EarnApp: $(cat /etc/earnapp/ver 2>/dev/null || echo "unknown")"\n\
-echo "UUID: $(cat /etc/earnapp/uuid 2>/dev/null || echo "not-set")"\n\
-echo ""\n\
-# Configurar UUID si se proporciona\n\
+echo "=== Iniciando servicios ==="\n\
+echo "UUID configurado: $EARNAPP_UUID"\n\
+\n\
+# Inicializar dbus\n\
+echo "Iniciando dbus..."\n\
+service dbus start\n\
+\n\
+# Configurar UUID si está definido\n\
 if [ ! -z "$EARNAPP_UUID" ]; then\n\
-    echo "$EARNAPP_UUID" > /etc/earnapp/uuid\n\
-    echo "UUID configurado: $EARNAPP_UUID"\n\
+    echo "Configurando UUID: $EARNAPP_UUID"\n\
+    /usr/bin/earnapp register $EARNAPP_UUID\n\
 fi\n\
-echo ""\n\
-echo "Iniciando EarnApp en segundo plano..."\n\
-nohup /usr/bin/earnapp > /var/log/earnapp/earnapp.log 2>&1 &\n\
-EARNAPP_PID=$!\n\
-echo "EarnApp iniciado con PID: $EARNAPP_PID"\n\
-sleep 3\n\
-echo ""\n\
-echo "Verificando estado de EarnApp..."\n\
-if ps -p $EARNAPP_PID > /dev/null; then\n\
-    echo "✓ EarnApp está ejecutándose correctamente"\n\
-else\n\
-    echo "⚠ EarnApp puede haber fallado al iniciar"\n\
-    echo "Últimas líneas del log:"\n\
-    tail -10 /var/log/earnapp/earnapp.log 2>/dev/null || echo "No hay logs disponibles"\n\
-fi\n\
-echo ""\n\
+\n\
+# Limpiar procesos previos de EarnApp\n\
+echo "Limpiando procesos previos..."\n\
+pkill -f earnapp || true\n\
+pkill -f portdetector || true\n\
+sleep 2\n\
+\n\
+# Iniciar EarnApp en background con el comando start\n\
+echo "Iniciando EarnApp..."\n\
+nohup /usr/bin/earnapp start > /var/log/earnapp.log 2>&1 &\n\
+\n\
+# Esperar un momento para que EarnApp se inicie\n\
+sleep 5\n\
+\n\
+# Verificar estado de EarnApp\n\
+echo "Estado de EarnApp:"\n\
+/usr/bin/earnapp status\n\
+\n\
+# Mostrar procesos activos\n\
+echo "Procesos EarnApp activos:"\n\
+ps aux | grep -E "(earnapp|portdetector)" | grep -v grep\n\
+\n\
+# Mostrar últimas líneas del log\n\
+echo "Últimas líneas del log:"\n\
+tail -n 5 /var/log/earnapp.log\n\
+\n\
+# Iniciar ttyd en foreground (puerto 8080)\n\
 echo "Iniciando terminal web en puerto $PORT..."\n\
-echo "Accede a http://localhost:$PORT para usar la terminal web"\n\
-echo ""\n\
-exec ttyd -p $PORT -i 0.0.0.0 --writable bash' > /usr/local/bin/start-services.sh && \
+exec ttyd -p $PORT bash' > /usr/local/bin/start-services.sh && \
     chmod +x /usr/local/bin/start-services.sh
 
 # Exponer puerto para ttyd

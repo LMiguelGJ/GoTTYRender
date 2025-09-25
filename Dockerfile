@@ -1,18 +1,14 @@
-FROM golang:1.20-alpine
+FROM alpine:latest
 
-# Instalar dependencias
-RUN apk add --no-cache bash git
-
-# Instalar GoTTY (fork actualizado)
-RUN go install github.com/sorenisanerd/gotty@latest
+# Instalar bash y ttyd
+RUN apk add --no-cache bash ttyd
 
 # Crear usuario no root
 RUN adduser -D webterm
 USER webterm
 WORKDIR /home/webterm
 
-# Render inyecta $PORT, así que usamos esa variable
 ENV PORT=8080
 
-# Lanzar GoTTY con credenciales
-CMD ["gotty", "-w", "--port", "${PORT}", "--credential", "admin:1234", "bash"]
+# Lanzar ttyd (terminal web en $PORT)
+CMD ["ttyd", "-p", "8080", "bash"]
